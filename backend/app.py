@@ -1,14 +1,7 @@
 """
 DialDesk Invoice Automation Portal — FastAPI application entrypoint.
-
-Run locally:
-    cd backend
-    python -m venv .venv
-    .venv\\Scripts\\activate        (Windows)   |   source .venv/bin/activate (mac/linux)
-    pip install -r requirements.txt
-    copy .env.example .env          (then fill in Supabase keys)
-    uvicorn app:app --reload --port 8000
 """
+
 import logging
 from contextlib import asynccontextmanager
 
@@ -35,14 +28,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Production + Local Frontend URLs
+ALLOWED_ORIGINS = [
+    "https://dial-desk-invoice-toolfrontend.vercel.app",  # Production Frontend
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Agar env me FRONTEND_ORIGIN diya hai to usko bhi add kar do
+if getattr(settings, "FRONTEND_ORIGIN", None):
+    ALLOWED_ORIGINS.append(settings.FRONTEND_ORIGIN)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_ORIGIN, "http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=list(set(ALLOWED_ORIGINS)),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Routers
 app.include_router(crm.router)
 app.include_router(smtp.router)
 app.include_router(templates.router)
@@ -57,9 +62,14 @@ def health():
         "status": "ok",
         "service": "dialdesk-invoice-backend",
         "supabase_configured": settings.is_supabase_configured,
+        "frontend_origin": getattr(settings, "FRONTEND_ORIGIN", None),
     }
 
 
 @app.get("/")
 def root():
-    return {"name": "DialDesk Invoice Automation Portal API", "docs": "/docs"}
+    return {
+        "name": "DialDesk Invoice Automation Portal API",
+        "docs": "/docs",
+        "health": "/health",
+    }
